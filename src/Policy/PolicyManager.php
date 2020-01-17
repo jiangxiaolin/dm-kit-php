@@ -113,7 +113,7 @@ class PolicyManager
 
     /**
      * load the policy parameters and build Policy class
-     *
+     * 主要的方法：加载策略参数，构建策略类
      * @param $policies
      * @return array
      */
@@ -121,19 +121,23 @@ class PolicyManager
     {
         if (!$this->policyMap) {
             $policyMap = [];
+            // 遍历每一个policy：trigger、params、output 分别给每一个policy的三要素构建对象
             foreach ($policies as $policy) {
                 $trigger = $policy['trigger'];
+                // trigger对象 包含意图 状态 实体等
                 $policyTrigger = new PolicyTrigger($trigger['intent'] ?? '', $trigger['slots'] ?? [], $trigger['changed_slots'] ?? [], $trigger['state'] ?? '');
                 $policyTrigger->setLogger($this->logger);
                 $params = [];
                 if(is_array($policy['params'])) {
                     foreach ($policy['params'] as $param) {
+                        //找出所有参数
                         $policyParam = new PolicyParam($param['name'], $param['type'], $param['value'], $param['required'] ?? false, $param['options'] ?? []);
                         $params[$param['name']] = $policyParam;
                     }
                 }
 
                 $outputs = [];
+                // 输出节点PolicyFunctionOutput与PolicyOutput 区别在于多了个function     
                 if (is_string($policy['output'])) {
                     $policyOutput = new PolicyFunctionOutput($policy['output']);
                     $outputs[] = $policyOutput->setLogger($this->logger);
@@ -149,6 +153,7 @@ class PolicyManager
                 if (!isset($policyMap[$mapKey])) {
                     $policyMap[$mapKey] = [];
                 }
+                //policyMap的key是intent 空的话就是NON_INTENT
                 $policyMap[$mapKey][] = $policyObject;
 
             }
@@ -160,7 +165,7 @@ class PolicyManager
     /**
      * return array result or false
      * if returns false, it means that the query is not recalled
-     *
+     *  策略的输出函数
      * @param $unitSay
      * @return array|bool
      */
@@ -171,6 +176,7 @@ class PolicyManager
             return false;
         }
         $unitSay = $this->quResult->getSay();
+        // 获取当前状态
         $this->session->read();
         $allSlots = $this->session->getSessionObject()->getSlots();
         foreach ($this->quResult->getSlots() as $key => $slot) {
@@ -178,6 +184,7 @@ class PolicyManager
         }
         $this->quResult->buildChangedSlots($this->session->getSessionObject());
         $this->session->getSessionObject()->setSlots($allSlots);
+        //意图不为空 则 清空对话状态？ 原因？
         if (!isset($this->policyMap[$this->quResult->getIntent()])) {
             $this->session->clean();
             $this->logger->debug('Current intent ' . $this->quResult->getIntent() . " doesn't match.");
@@ -186,10 +193,12 @@ class PolicyManager
         $this->logger->debug('Current quResult ' . (string)$this->quResult);
 
         $matchedPolicies = [];
+       // 关键步骤  查看匹配到多少policy 以 意图为key 获取policy
         foreach ($this->policyMap[$this->quResult->getIntent()] as $policy) {
             /**
              * @var $policy Policy
              */
+            //触发trigger hitTrigger的作用是根据意图对policy进行打分
             $score = $policy->getPolicyTrigger()->hitTrigger();
             if ($score) {
                 $this->logger->debug('Policy matched. Trigger: ' . (string)$policy->getPolicyTrigger());
@@ -201,12 +210,14 @@ class PolicyManager
         }
 
         //choose a policy with highest score
+        //选择最高分的策略  只选一个 所以不存在互斥的问题
         if(count($matchedPolicies)) {
             usort($matchedPolicies, function($a, $b){
                 return $a['score']->isGreaterThan($b['score']) ? -1 : 1;
             });
             $policy = $matchedPolicies[0]['policy'];
             $this->logger->debug('Policy chosen. Trigger: ' . (string)$policy->getPolicyTrigger());
+            // 根据选定的策略 遍历输出结果  并同时更新状态
             foreach ($policy->getPolicyOutputs() as $policyOutput) {
                 /**
                  * @var $policyOutput PolicyOutputInterface
@@ -220,8 +231,8 @@ class PolicyManager
             }
             $this->logger->debug('Nothing to output.');
         }
-
-        //do not retry on initial state
+        //初始状态的话则不
+        //do not retry on initial state 
         if ($this->session->getSessionObject()->getState() === PolicyTrigger::INIT_STATE) {
             return false;
         }
