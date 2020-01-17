@@ -78,13 +78,14 @@ class PolicyTrigger
 
     /**
      * @return PolicyTriggerScore|bool
+     * 给策略打分的工具
      */
     public function hitTrigger()
-    {
+    {   //首先获取状态 获取意图结果
         $session = $this->policy->policyManager->getSession();
         $quResult = $this->policy->policyManager->getQuResult();
         $score = new PolicyTriggerScore();
-        //check intent constraint
+        //check intent constraint 意图相同打一分
         if ($this->intent == $quResult->getIntent()) {
             $score->setIntentScore(1);
         }else{
@@ -95,7 +96,7 @@ class PolicyTrigger
         if(!empty($this->state)){
             //check array state constraint
             $currentState = $session->getSessionObject()->getState();
-            if(is_array($this->state)) {
+            if(is_array($this->state)) {//状态包含则打一分
                 if(in_array($currentState, $this->state)) {
                     $score->setStateScore(1);
                 }else{
@@ -105,7 +106,7 @@ class PolicyTrigger
             }
 
             //check string state constraint
-            if (is_string($this->state)) {
+            if (is_string($this->state)) {//状态相同则打一分
                 if($this->state == $currentState) {
                     $score->setStateScore(1);
                 }else{
@@ -115,7 +116,7 @@ class PolicyTrigger
             }
         }
 
-        //check slots constraint
+        //check slots constraint 按槽的重叠个数打分
         if (count($this->slots) === count(array_intersect($this->slots, array_keys($quResult->getSlots())))) {
             $score->setSlotsScore(count($this->slots));
         }else{
@@ -123,7 +124,7 @@ class PolicyTrigger
             return false;
         }
 
-        //check changed slots constraint
+        //check changed slots constraint 按改变的槽内容打分
         if (count($this->changedSlots) === count(array_intersect($this->changedSlots, array_keys($quResult->getChangedSlots())))) {
             $score->setChangedSlotsScore(count($this->changedSlots));
         }else{
