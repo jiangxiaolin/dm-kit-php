@@ -1,3 +1,10 @@
+
+# 针对百度DMkit的一些注释，便于后面开发。
+
+* PolicyManager部分，整体的调度器，产生action
+* policyTrigger 打分机制  主要针对 意图 状态 填槽信息打分 取最高分数策略作为生成action的策略
+
+
 # DM Kit 快速上手
 
 ## 简介
